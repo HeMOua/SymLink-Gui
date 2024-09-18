@@ -1,3 +1,5 @@
+import logging
+import queue
 import os
 import tkinter as tk
 from tkinter import filedialog
@@ -19,8 +21,13 @@ class MainWindow(TkinterDnD.Tk):
         self.init_window()
         self.init_view()
         self.init_event()
+        self.init_logging()
 
-        LOGGER.addHandler(TextHandler(self.tab1_txt))
+    def init_logging(self):
+        log_queue = queue.Queue()
+        self.text_handler = TextHandler(self, self.tab1_txt, log_queue, level=logging.DEBUG)
+        LOGGER.addHandler(self.text_handler)
+        self.after(100, self.text_handler.process_queue)
 
     def init_window(self):
         # 标题
@@ -139,14 +146,18 @@ class MainWindow(TkinterDnD.Tk):
 
         # Frame3 Start
         frame4 = ttk.Frame(tab1)
+        enable_debug_check_var = tk.IntVar(value=0)
+        enable_debug_check = tk.Checkbutton(frame4, text="调试模式", variable=enable_debug_check_var, takefocus=False)
+        enable_debug_check.grid(row=0, column=0, padx=(0, 5))
+        self.enable_debug_check_var = enable_debug_check_var
         tab1_prev = ttk.Button(frame4, text="预览", takefocus=False, command=lambda: self.exec(preview=True))
-        tab1_prev.grid(row=0, column=0, padx=(0, 5), sticky='ew')
+        tab1_prev.grid(row=0, column=1, padx=(0, 5), sticky='ew')
         self.tab1_prev = tab1_prev
         tab1_exec = ttk.Button(frame4, text="执行", takefocus=False, command=lambda: self.exec())
-        tab1_exec.grid(row=0, column=1, padx=(5, 0), sticky='ew')
+        tab1_exec.grid(row=0, column=2, padx=(5, 0), sticky='ew')
         self.tab1_exec = tab1_exec
-        frame4.columnconfigure(0, weight=1)
         frame4.columnconfigure(1, weight=1)
+        frame4.columnconfigure(2, weight=1)
         frame4.grid(row=3, column=0, padx=10, pady=(0, 10), sticky='ew')
         # Frame3 End
 
@@ -191,26 +202,12 @@ class MainWindow(TkinterDnD.Tk):
         self.tab1_ent2_tar_var.trace_add('write', lambda *args: on_change_tar())
         
     def exec(self, preview=False):
+        self.text_handler.setLevel(logging.DEBUG if self.enable_debug_check_var.get() == 1 else logging.INFO)
+
         src = self.tab1_ent2_src_tpth_var.get()
         dst = self.tab1_ent2_tar_tpth_var.get()
-        if not src and not dst:
-            LOGGER.error("Source and target folders are empty.")
-            return
-        elif not src:
-            LOGGER.error("Source folder is empty.")
-            return
-        elif not dst:
-            LOGGER.error("Target folder is empty.")
-            return
-        
-        LOGGER.info(f"Create symlink from \"{src}\" to \"{dst}\".")
-        # make_symlink(src, dst)
+
+        make_symlink(src, dst, preview)
 
     def run(self):
-        self.mainloop()
-
-
-if __name__ == '__main__':
-    app = MainWindow('软链接 SymLink - By HeMOu', 600, 500)
-    app.run()
-        
+        self.mainloop()        
