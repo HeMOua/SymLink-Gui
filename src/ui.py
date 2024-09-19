@@ -24,10 +24,10 @@ class MainWindow(TkinterDnD.Tk):
         self.init_logging()
 
     def init_logging(self):
-        log_queue = queue.Queue()
-        self.text_handler = TextHandler(self, self.tab1_txt, log_queue, level=logging.DEBUG)
+        self.log_queue = queue.Queue()
+        self.text_handler = TextHandler(self, self.tab1_txt, self.log_queue, level=logging.DEBUG)
         LOGGER.addHandler(self.text_handler)
-        self.after(100, self.text_handler.process_queue)
+        self.after(100, self.process_queue)
 
     def init_window(self):
         # 标题
@@ -201,13 +201,35 @@ class MainWindow(TkinterDnD.Tk):
         self.tab1_ent1_src_var.trace_add('write', lambda *args: on_change_src())
         self.tab1_ent2_tar_var.trace_add('write', lambda *args: on_change_tar())
         
+    def process_queue(self):
+        # 从队列中读取日志并插入到 Text 小部件中
+        while not self.log_queue.empty():
+            msg, levelno = self.log_queue.get_nowait()
+            if levelno == logging.INFO:
+                tag = "info"
+            elif levelno == logging.ERROR:
+                tag = "error"
+            elif levelno == logging.WARNING:
+                tag = "warning"
+            elif levelno == logging.DEBUG:
+                tag = "debug"
+            else:
+                tag = None
+
+            self.tab1_txt.insert(tk.END, msg + '\n', tag)
+            self.tab1_txt.see(tk.END)
+
+        # 继续定期检查队列
+        self.after(100, self.process_queue)
+
     def exec(self, preview=False):
         self.text_handler.setLevel(logging.DEBUG if self.enable_debug_check_var.get() == 1 else logging.INFO)
 
         src = self.tab1_ent2_src_tpth_var.get()
         dst = self.tab1_ent2_tar_tpth_var.get()
 
-        make_symlink(src, dst, preview)
+        # make_symlink(src, dst, preview)
+        self.after(0, make_symlink, src, dst, preview)
 
     def run(self):
         self.mainloop()        

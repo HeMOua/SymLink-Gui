@@ -40,31 +40,5 @@ class TextHandler(logging.Handler):
         msg = self.format(record)
         self.log_queue.put((msg, record.levelno))
 
-    def process_queue(self):
-        # 从队列中读取日志并插入到 Text 小部件中
-        try:
-            while True:
-                msg, levelno = self.log_queue.get_nowait()  # 不阻塞地获取日志
-                # 根据日志级别选择标签
-                if levelno == logging.INFO:
-                    tag = "INFO"
-                elif levelno == logging.ERROR:
-                    tag = "ERROR"
-                elif levelno == logging.WARNING:
-                    tag = "WARNING"
-                elif levelno == logging.DEBUG:
-                    tag = "DEBUG"
-                else:
-                    tag = None
-
-                # 在 Text 小部件中插入消息，并根据级别应用标签
-                self.text_widget.insert(tk.END, msg + '\n', tag)
-                self.text_widget.see(tk.END)
-        except queue.Empty:
-            pass
-
-        # 继续定期检查队列
-        self.root.after(100, self.process_queue)
-
 
 LOGGER = get_logger(__name__, logging.DEBUG)
