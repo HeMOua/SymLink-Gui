@@ -1,6 +1,8 @@
+import sys
 import logging
 import queue
 import os
+import threading
 import tkinter as tk
 from tkinter import filedialog
 from tkinter import ttk
@@ -9,6 +11,11 @@ from tkinterdnd2 import TkinterDnD, DND_FILES
 from pathlib import Path
 from service import make_symlink
 
+
+if getattr(sys, 'frozen', None):
+    basedir = sys._MEIPASS
+else:
+    basedir = os.path.dirname(__file__)
 
 
 class MainWindow(TkinterDnD.Tk):
@@ -24,17 +31,17 @@ class MainWindow(TkinterDnD.Tk):
         self.init_logging()
 
     def init_logging(self):
-        log_queue = queue.Queue()
-        self.text_handler = TextHandler(self, self.tab1_txt, log_queue, level=logging.DEBUG)
+        self.log_queue = queue.Queue()
+        self.text_handler = TextHandler(self, self.tab1_txt, self.log_queue, level=logging.DEBUG)
         LOGGER.addHandler(self.text_handler)
-        self.after(100, self.text_handler.process_queue)
+        self.after(100, self.process_queue)
 
     def init_window(self):
         # 标题
         self.title(self._title)
 
         # 图标
-        self.iconbitmap(ROOT / 'assets/symlink.ico')
+        self.iconbitmap(os.path.join(basedir, "symlink.ico"))
 
         # 获取屏幕的宽度和高度
         screen_width = self.winfo_screenwidth()
@@ -49,16 +56,6 @@ class MainWindow(TkinterDnD.Tk):
         # self.resizable(True, False)
 
     def init_view(self):
-        # notebook = ttk.Notebook(self)
-
-        # style = ttk.Style()
-        # style.configure('TNotebook.Tab', padding=[10, 5], font=('宋体', 10))
-        # style.layout("Tab", [
-        #     ('Notebook.tab', {'sticky': 'nswe', 'children': [
-        #         ('Notebook.padding', {'side': 'top', 'sticky': 'nswe', 'children': [
-        #             ('Notebook.label', {'side': 'top', 'sticky': ''})],
-        #     })],
-        # })])
 
         def on_checkbox_changed(var, entry):
             entry.config(state='normal' if var.get() == 1 else 'disabled')
@@ -138,9 +135,17 @@ class MainWindow(TkinterDnD.Tk):
         # Frame2 End
 
         # Textbox Start
-        tab1_txt = tk.Text(tab1)
-        tab1_txt.grid(row=2, column=0, padx=10, pady=10, sticky='nsew')
-        tab1_txt.tag_config('info', foreground='blue')
+        text_frame = ttk.Frame(tab1)
+
+        tab1_txt = tk.Text(text_frame, wrap='word')
+        tab1_txt.pack(expand=True, fill='both')
+
+        text_scroll = tk.Scrollbar(text_frame, orient='vertical', command=tab1_txt.yview)
+        text_scroll.pack(side='right', fill='y')
+        tab1_txt.config(yscrollcommand=text_scroll.set)
+        text_scroll.config(command=tab1_txt.yview)
+
+        text_frame.grid(row=2, column=0, padx=10, pady=10, sticky='nsew')
         self.tab1_txt = tab1_txt
         # Textbox End
 
@@ -156,8 +161,11 @@ class MainWindow(TkinterDnD.Tk):
         tab1_exec = ttk.Button(frame4, text="执行", takefocus=False, command=lambda: self.exec())
         tab1_exec.grid(row=0, column=2, padx=(5, 0), sticky='ew')
         self.tab1_exec = tab1_exec
+        tab1_clear = ttk.Button(frame4, text="清空", takefocus=False, command=lambda: self.tab1_txt.delete(1.0, tk.END))
+        tab1_clear.grid(row=0, column=3, padx=(5, 0), sticky='ew')
         frame4.columnconfigure(1, weight=1)
         frame4.columnconfigure(2, weight=1)
+        frame4.columnconfigure(3, weight=1)
         frame4.grid(row=3, column=0, padx=10, pady=(0, 10), sticky='ew')
         # Frame3 End
 
@@ -174,7 +182,7 @@ class MainWindow(TkinterDnD.Tk):
                 if os.path.isdir(path):
                     var.set(path)
                 else:
-                    LOGGER.warning(f"\"{path}\" is not a directory.")
+                    LOGGER.warning(f"\"{path}\" 不是文件夹。")
 
         def on_change_src():
             src_folder_name = os.path.basename(self.tab1_ent1_src_var.get())
@@ -201,13 +209,54 @@ class MainWindow(TkinterDnD.Tk):
         self.tab1_ent1_src_var.trace_add('write', lambda *args: on_change_src())
         self.tab1_ent2_tar_var.trace_add('write', lambda *args: on_change_tar())
         
+    def process_queue(self):
+        last_tag = None
+        logs_buffer = ""
+
+        # 从队列中读取日志并插入到 Text 小部件中
+        while not self.log_queue.empty():
+            msg, levelno = self.log_queue.get_nowait()  # 不阻塞地获取日志
+            # 根据日志级别选择标签
+            if levelno == logging.INFO:
+                tag = "INFO"
+            elif levelno == logging.ERROR:
+                tag = "ERROR"
+            elif levelno == logging.WARNING:
+                tag = "WARNING"
+            elif levelno == logging.DEBUG:
+                tag = "DEBUG"
+            else:
+                tag = None
+
+            # 如果 tag 发生变化或没有初始化
+            if tag != last_tag and logs_buffer:
+                # 先将之前相同 tag 的日志插入
+                self.tab1_txt.insert(tk.END, logs_buffer, last_tag)
+                self.tab1_txt.see(tk.END)
+                logs_buffer = ""  # 清空缓冲区
+                last_tag = tag  # 更新 last_tag
+
+            # 拼接相同 tag 的日志
+            logs_buffer += msg + '\n'
+
+        # 插入剩余的日志
+        if logs_buffer:
+            self.tab1_txt.insert(tk.END, logs_buffer, last_tag)
+            self.tab1_txt.see(tk.END)
+
+        # 继续定期检查队列
+        self.after(100, self.process_queue)
+
+    def make_make_symlink_in_thread(self, src, dst, preview):
+        threading.Thread(target=make_symlink, args=(src, dst, preview)).start()
+
     def exec(self, preview=False):
         self.text_handler.setLevel(logging.DEBUG if self.enable_debug_check_var.get() == 1 else logging.INFO)
 
         src = self.tab1_ent2_src_tpth_var.get()
         dst = self.tab1_ent2_tar_tpth_var.get()
 
-        make_symlink(src, dst, preview)
+        self.make_make_symlink_in_thread(src, dst, preview)
 
     def run(self):
         self.mainloop()        

@@ -16,7 +16,7 @@ def move_file_or_folder(source_path: Path, dest_folder: Path, preview):
 
         if not preview:
             shutil.move(str(source_path), str(dest_path))
-        LOGGER.debug(f"Moved file: \"{source_path.resolve()}\" to \"{dest_path.resolve()}\"")
+        LOGGER.debug(f"移动文件: \"{source_path.resolve()}\" 到 \"{dest_path.resolve()}\"")
     
     # 如果是文件夹，递归移动其中的内容
     elif source_path.is_dir():
@@ -37,37 +37,38 @@ def move_all(source_folder: Path, dest_folder: Path, preview):
     # 删除空的源文件夹
     if not preview:
         shutil.rmtree(source_folder)
-    LOGGER.debug(f"Removed empty folder: \"{source_folder.resolve()}\"")
+    LOGGER.debug(f"删除空文件夹: \"{source_folder.resolve()}\"")
 
 
 def make_symlink(_src: str, _dst: str, preview):
     if preview:
-        LOGGER.info("Preview Mode".center(40, "="))
-        LOGGER.info("Currently in preview mode, it will not have any impact on the directory.")
+        LOGGER.info("预览模式".center(40, "="))
+        LOGGER.info("预览模式下不会创建软链接，只会显示模拟移动和删除的操作。")
     else:
-        LOGGER.info("Execution Mode".center(40, "="))
-    LOGGER.info(f"Start creating symlink from {_src} to {_dst}.")
+        LOGGER.info("执行模式".center(40, "="))
+
+    LOGGER.info(f"开始创建软链接，源路径：{_src}，目标路径：{_dst}。")
     t0 = time.time()
     
     try:
         # 检查值
         if not _src and not _dst:
-            raise ValueError("Source and target folders are empty.")
+            raise ValueError("源路径和目标路径均为空。")
         elif not _src:
-            raise ValueError("Source folder is empty.")
+            raise ValueError("源路径为空。")
         elif not _dst:
-            raise ValueError("Target folder is empty.")
+            raise ValueError("目标路径为空。")
         
         src = Path(_src)
         dst = Path(_dst)
 
         # 检查路径
         if not src.exists():
-            raise FileNotFoundError(f"Source path \"{src}\" does not exist.")
+            raise FileNotFoundError(f"源路径 \"{src}\" 不存在。")
         if dst.exists():
-            raise FileExistsError(f"Destination path \"{dst}\" already exists.")
+            raise FileExistsError(f"目标路径 \"{dst}\" 已存在。")
         if str(dst).startswith(str(src)):
-            raise ValueError(f"Destination path \"{dst}\" is a subdirectory of source path \"{src}\".")
+            raise ValueError(f"目标路径 \"{dst}\" 不能是源路径 \"{src}\" 的子目录。")
 
         # 移动文件
         move_all(src, dst, preview)
@@ -76,15 +77,15 @@ def make_symlink(_src: str, _dst: str, preview):
         if not preview:
             os.symlink(dst, src)
         
-        LOGGER.info(f"Finished creating symlink from \"{src}\" to \"{dst}\".")
+        LOGGER.info(f"创建软链接成功，源路径：{_src}，目标路径：{_dst}。")
     except Exception as e:
-        LOGGER.error(f"Failed to create symlink from \"{src}\" to \"{dst}\".")
+        LOGGER.error(f"创建软链接失败：{e}")
         LOGGER.error(e)
         return
     finally:
-        LOGGER.info(f"Time elapsed: {time.time() - t0:.2f}s")
+        LOGGER.info(f"耗时: {time.time() - t0:.2f}s")
 
         if preview:
-            LOGGER.info("Preview Mode End".center(40, "=") + "\n")
+            LOGGER.info("预览模式结束".center(40, "=") + "\n")
         else:
-            LOGGER.info("Execution Mode End".center(40, "=") + "\n")
+            LOGGER.info("执行模式结束".center(40, "=") + "\n")
