@@ -15,7 +15,7 @@ from service import make_symlink
 if getattr(sys, 'frozen', None):
     basedir = sys._MEIPASS
 else:
-    basedir = os.path.dirname(__file__)
+    basedir = str(Path(__file__).parents[1].resolve())
 
 
 class MainWindow(TkinterDnD.Tk):
@@ -64,8 +64,19 @@ class MainWindow(TkinterDnD.Tk):
             folder_selected = filedialog.askdirectory()
             var.set(folder_selected)
 
+        style = ttk.Style()
+        style.configure('TNotebook.Tab', padding=[4, 4], font=('微软雅黑', 10))
+        style.layout("Tab", [
+            ('Notebook.tab', {'sticky': 'nswe', 'children': [
+                ('Notebook.padding', {'side': 'top', 'sticky': 'nswe', 'children': [
+                    ('Notebook.label', {'side': 'top', 'sticky': ''})],
+            })],
+        })])
+
+        notebook = ttk.Notebook(self)
+
         # 选项卡1
-        tab1 = ttk.Frame(self)
+        tab1 = ttk.Frame(notebook)
         # Frame1 Start
         frame1 = ttk.LabelFrame(tab1, text="源文件夹选择")
         # row1 label
@@ -169,10 +180,16 @@ class MainWindow(TkinterDnD.Tk):
         frame4.grid(row=3, column=0, padx=10, pady=(0, 10), sticky='ew')
         # Frame3 End
 
-        # notebook.add(tab1, text='文件模式')
         tab1.columnconfigure(0, weight=1)
         tab1.rowconfigure(2, weight=1)
         tab1.pack(expand=True, fill='both')
+        notebook.add(tab1, text='自动模式')
+
+        # 选项卡2
+        tab2 = ttk.Frame(notebook)
+        notebook.add(tab2, text='手动模式')
+
+        notebook.pack(expand=True, fill='both', padx=8, pady=8)
 
     def init_event(self):
 
@@ -260,3 +277,8 @@ class MainWindow(TkinterDnD.Tk):
 
     def run(self):
         self.mainloop()        
+
+
+if __name__ == '__main__':
+    app = MainWindow('软链接 SymLink - By HeMOu', 600, 500)
+    app.run()

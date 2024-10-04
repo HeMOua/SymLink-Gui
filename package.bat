@@ -1,0 +1,1 @@
+pyinstaller -F -w -i symlink.ico src\main.py --add-data "symlink.ico;." --additional-hooks-dir=.\src -n SymlinkGUI
